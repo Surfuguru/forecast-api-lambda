@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         
         logger.info(f"Searching beaches near lat={lat}, long={long}, range={range_km}km")
         
-        # Haversine formula for distance calculation
+        # Haversine formula for distance calculation - lowercase table name
         sql = f"""
             SELECT 
                 *,
@@ -49,7 +49,7 @@ def lambda_handler(event, context):
                         * sin(radians(lat))
                     )
                 ) AS distance
-            FROM Praias
+            FROM praias
             WHERE ativa = 1
             HAVING distance < {range_km}
             ORDER BY distance

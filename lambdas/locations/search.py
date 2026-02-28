@@ -27,8 +27,8 @@ def lambda_handler(event, context):
         
         logger.info(f"Searching beaches with name: {name}")
         
-        # Search query
-        sql = "SELECT * FROM Praias WHERE nome LIKE %s AND ativa = 1"
+        # Search query - using lowercase table names
+        sql = "SELECT * FROM praias WHERE nome LIKE %s AND ativa = 1"
         beaches = execute_query(sql, (f"%{name}%",))
         
         logger.info(f"Found {len(beaches)} beaches matching '{name}'")
