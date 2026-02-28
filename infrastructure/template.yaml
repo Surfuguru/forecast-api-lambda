@@ -30,8 +30,6 @@ Globals:
     Runtime: python3.13
     Timeout: 30
     MemorySize: 256
-    Layers:
-      - !Ref PymysqlLayer
     Environment:
       Variables:
         ENVIRONMENT: !Ref Environment
@@ -43,9 +41,9 @@ Globals:
       SecurityGroupIds:
         - sg-0adece53aec8ca23c
       SubnetIds:
-        - !Ref Subnet1
-        - !Ref Subnet2
-        - !Ref Subnet3
+        - subnet-0756763d7be08d59e
+        - subnet-044eb341300a43ff5
+        - subnet-0e7b755ac101312cf
 
 Resources:
   # Shared Lambda Layer
