@@ -46,16 +46,6 @@ Globals:
         - subnet-0e7b755ac101312cf
 
 Resources:
-  # Shared Lambda Layer
-  PymysqlLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: pymysql-layer
-      Description: pymysql database driver
-      ContentUri: ../layer/pymysql/
-      CompatibleRuntimes:
-        - python3.13
-
   # API Gateway
   ForecastApi:
     Type: AWS::Serverless::Api
@@ -133,6 +123,20 @@ Resources:
           Type: Api
           Properties:
             Path: /forecast/mock
+            Method: get
+            RestApiId: !Ref ForecastApi
+
+  # Legacy Forecast Function
+  LegacyForecastFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambdas/
+      Handler: forecast.legacy.lambda_handler
+      Events:
+        GetLegacyForecast:
+          Type: Api
+          Properties:
+            Path: /forecast
             Method: get
             RestApiId: !Ref ForecastApi
 

@@ -81,6 +81,25 @@ jobs:
                 DbPassword=${{ secrets.FORECAST_API_MYSQL_PASSWORD }} \
                 DbName=${{ secrets.FORECAST_API_MYSQL_DATABASE }}
       
+      - name: Update Lambda environment variables for S3
+        run: |
+          # Update all Lambda functions with S3 credentials
+          for func in $(aws lambda list-functions --query 'Functions[?contains(FunctionName, `forecast-api-live`)].FunctionName' --output text); do
+            echo "Updating $func..."
+            aws lambda update-function-configuration \
+              --function-name "$func" \
+              --environment "Variables={
+                ENVIRONMENT=production,
+                FORECAST_API_MYSQL_HOST=${{ secrets.FORECAST_API_MYSQL_HOST }},
+                FORECAST_API_MYSQL_USER=${{ secrets.FORECAST_API_MYSQL_USER }},
+                FORECAST_API_MYSQL_PASSWORD=$(echo '${{ secrets.FORECAST_API_MYSQL_PASSWORD }}' | sed 's/\$/\\$/g'),
+                FORECAST_API_MYSQL_DATABASE=${{ secrets.FORECAST_API_MYSQL_DATABASE }},
+                FORECAST_API_AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }},
+                FORECAST_API_AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }},
+                FORECAST_API_AWS_FORECAST_BUCKET=surf-forecast-data
+              }" 2>&1 | grep -E "FunctionName|LastUpdateStatus" || echo "Failed to update $func"
+          done
+      
       - name: Get API Gateway URL
         id: api-url
         run: |
