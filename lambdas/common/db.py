@@ -8,7 +8,7 @@ import logging
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO
+logger.setLevel(logging.INFO)
 
 # Global connection
 _connection = None
