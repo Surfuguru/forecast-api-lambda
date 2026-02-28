@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Forecast API Lambda Functions
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+  
+  DbHost:
+    Type: String
+    NoEcho: true
+  
+  DbUser:
+    Type: String
+    NoEcho: true
+  
+  DbPassword:
+    Type: String
+    NoEcho: true
+  
+  DbName:
+    Type: String
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Timeout: 30
+    MemorySize: 256
+    Layers:
+      - !Ref PymysqlLayer
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        FORECAST_API_MYSQL_HOST: !Ref DbHost
+        FORECAST_API_MYSQL_USER: !Ref DbUser
+        FORECAST_API_MYSQL_PASSWORD: !Ref DbPassword
+        FORECAST_API_MYSQL_DATABASE: !Ref DbName
+    VpcConfig:
+      SecurityGroupIds:
+        - sg-0adece53aec8ca23c
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+
+Resources:
+  # Shared Lambda Layer
+  PymysqlLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: pymysql-layer
+      Description: pymysql database driver
+      ContentUri: ../layer/pymysql/
+      CompatibleRuntimes:
+        - python3.13
+
+  # API Gateway
+  ForecastApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+
+  # Health Check Function
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambdas/
+      Handler: health.lambda_handler
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+            RestApiId: !Ref ForecastApi
+
+  # Get All Locations Function
+  GetLocationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambdas/
+      Handler: locations.get_all.lambda_handler
+      Events:
+        GetLocations:
+          Type: Api
+          Properties:
+            Path: /locations
+            Method: get
+            RestApiId: !Ref ForecastApi
+
+  # Get Beaches by Geo Function
+  GetBeachesByGeoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambdas/
+      Handler: locations.get_by_geo.lambda_handler
+      Events:
+        GetBeachesByGeo:
+          Type: Api
+          Properties:
+            Path: /geolocation/nearest-spots
+            Method: get
+            RestApiId: !Ref ForecastApi
+
+  # Search Beaches Function
+  SearchBeachesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambdas/
+      Handler: locations.search.lambda_handler
+      Events:
+        SearchBeaches:
+          Type: Api
+          Properties:
+            Path: /geolocation/search
+            Method: get
+            RestApiId: !Ref ForecastApi
+
+  # Mock Forecast Function
+  MockForecastFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../lambdas/
+      Handler: forecast.legacy_mock.lambda_handler
+      Events:
+        GetMockForecast:
+          Type: Api
+          Properties:
+            Path: /forecast/mock
+            Method: get
+            RestApiId: !Ref ForecastApi
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ForecastApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+  
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref ForecastApi
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiId"

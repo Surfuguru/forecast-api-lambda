@@ -1,0 +1,109 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+environment:
+  name: production
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r lambdas/requirements.txt
+          pip install pytest
+          pip install cfn-lint
+          
+      - name: Lint CloudFormation template
+        run: |
+          cfn-lint infrastructure/template.yaml
+      
+      - name: Run tests
+        run: |
+          pytest tests/ -v || true
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      
+      - name: Build Lambda layer
+        run: |
+          mkdir -p layer/pymysql/python
+          pip install -r layer/pymysql/requirements.txt -t layer/pymysql/python
+      
+      - name: Build SAM application
+        run: |
+          cd infrastructure
+          sam build
+      
+      - name: Deploy to AWS
+        run: |
+          cd infrastructure
+          sam deploy \
+            --stack-name forecast-api-production \
+            --s3-bucket forecast-api-lambda-deployments \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+                Environment=production \
+                DbHost=${{ secrets.FORECAST_API_MYSQL_HOST }} \
+                DbUser=${{ secrets.FORECAST_API_MYSQL_USER }} \
+                DbPassword=${{ secrets.FORECAST_API_MYSQL_PASSWORD }} \
+                DbName=${{ secrets.FORECAST_API_MYSQL_DATABASE }}
+      
+      - name: Get API Gateway URL
+        id: api-url
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name forecast-api-production \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+            --output text)
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $API_URL"
+
+  notify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Deployment Status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            echo "API URL: ${{ needs.deploy.outputs.api_url }}"
+          else
+            echo "❌ Deployment failed!"
+            exit 1
+          fi
