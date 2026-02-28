@@ -2,7 +2,7 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
 environment:
@@ -71,7 +71,7 @@ jobs:
         run: |
           cd infrastructure
           sam deploy \
-            --stack-name forecast-api-production \
+            --stack-name forecast-api-live \
             --s3-bucket forecast-api-lambda-deployments \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --no-confirm-changeset \
@@ -87,7 +87,7 @@ jobs:
         id: api-url
         run: |
           API_URL=$(aws cloudformation describe-stacks \
-            --stack-name forecast-api-production \
+            --stack-name forecast-api-live \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
             --output text)
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
