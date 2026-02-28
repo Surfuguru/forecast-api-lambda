@@ -18,7 +18,7 @@ def lambda_handler(event, context):
     try:
         logger.info("Fetching all locations")
         
-        # Query all locations - lowercase table name
+        # Query all locations
         sql = """
             SELECT * FROM locais 
             WHERE nivel IN (1, 2, 3, 4) 
@@ -26,12 +26,11 @@ def lambda_handler(event, context):
         """
         locations = execute_query(sql)
         
-        # Query all beaches - lowercase table name
+        # Query all beaches - removed ativa filter
         sql_beaches = """
             SELECT p.*, l.nome as localidade_nome 
             FROM praias p 
             LEFT JOIN locais l ON p.local_id = l.id 
-            WHERE p.ativa = 1 
             ORDER BY p.nome
         """
         beaches = execute_query(sql_beaches)

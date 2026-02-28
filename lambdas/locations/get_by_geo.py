@@ -36,23 +36,34 @@ def lambda_handler(event, context):
         
         logger.info(f"Searching beaches near lat={lat}, long={long}, range={range_km}km")
         
-        # Haversine formula for distance calculation - lowercase table name
+        # Use the exact query from original TypeScript code
         sql = f"""
             SELECT 
-                *,
-                (
-                    6371 * acos(
-                        cos(radians({lat})) 
-                        * cos(radians(lat)) 
-                        * cos(radians(lon) - radians({long})) 
-                        + sin(radians({lat})) 
-                        * sin(radians(lat))
+                pr.id as praia_id,
+                pr.nome_2 AS praia_nome,
+                lo.litoral_id as litoral_id,
+                lo.nome as litoral_nome,
+                lo.lat as litoral_lat,
+                lo.lon as litoral_lon,
+                pr.lat as lat,
+                pr.lon as lon,
+                (SELECT lo2.sigla FROM locais lo2 WHERE lo2.id = lo.pai) as uf,
+                ((3956 *
+                2 *
+                ASIN(
+                    SQRT(POWER(SIN((abs({lat}) - abs(pr.lat)) *
+                               pi()/180 / 2),2) +
+                    COS(abs({long}) * pi()/180 ) *
+                    COS(abs(pr.lat) * pi()/180) *
+                    POWER(SIN((abs({long}) - abs(pr.lon)) *
+                                pi()/180 / 2), 2))
                     )
-                ) AS distance
-            FROM praias
-            WHERE ativa = 1
-            HAVING distance < {range_km}
-            ORDER BY distance
+                ) * 1.609344) as distancia
+            FROM praias pr
+            INNER JOIN locais lo ON lo.id = pr.local_id
+            HAVING distancia < {range_km}
+            ORDER BY distancia
+            LIMIT 100
         """
         
         beaches = execute_query(sql)
