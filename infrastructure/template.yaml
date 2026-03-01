@@ -24,6 +24,18 @@ Parameters:
   
   DbName:
     Type: String
+  
+  S3AccessKeyId:
+    Type: String
+    NoEcho: true
+  
+  S3SecretAccessKey:
+    Type: String
+    NoEcho: true
+  
+  S3ForecastBucket:
+    Type: String
+    Default: surf-forecast-data
 
 Globals:
   Function:
@@ -37,6 +49,9 @@ Globals:
         FORECAST_API_MYSQL_USER: !Ref DbUser
         FORECAST_API_MYSQL_PASSWORD: !Ref DbPassword
         FORECAST_API_MYSQL_DATABASE: !Ref DbName
+        FORECAST_API_AWS_ACCESS_KEY_ID: !Ref S3AccessKeyId
+        FORECAST_API_AWS_SECRET_ACCESS_KEY: !Ref S3SecretAccessKey
+        FORECAST_API_AWS_FORECAST_BUCKET: !Ref S3ForecastBucket
     VpcConfig:
       SecurityGroupIds:
         - sg-0adece53aec8ca23c
