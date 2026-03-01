@@ -39,6 +39,35 @@ jobs:
           cd infrastructure
           sam build
       
+      - name: Create parameters file
+        env:
+          DB_HOST: ${{ secrets.FORECAST_API_MYSQL_HOST }}
+          DB_USER: ${{ secrets.FORECAST_API_MYSQL_USER }}
+          DB_PASSWORD: ${{ secrets.FORECAST_API_MYSQL_PASSWORD }}
+          DB_NAME: ${{ secrets.FORECAST_API_MYSQL_DATABASE }}
+          S3_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          S3_SECRET_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          jq -n \
+            --arg Environment "production" \
+            --arg DbHost "$DB_HOST" \
+            --arg DbUser "$DB_USER" \
+            --arg DbPassword "$DB_PASSWORD" \
+            --arg DbName "$DB_NAME" \
+            --arg S3AccessKeyId "$S3_ACCESS_KEY" \
+            --arg S3SecretAccessKey "$S3_SECRET_KEY" \
+            --arg S3ForecastBucket "surf-forecast-data" \
+            '{
+              Environment: $Environment,
+              DbHost: $DbHost,
+              DbUser: $DbUser,
+              DbPassword: $DbPassword,
+              DbName: $DbName,
+              S3AccessKeyId: $S3AccessKeyId,
+              S3SecretAccessKey: $S3SecretAccessKey,
+              S3ForecastBucket: $S3ForecastBucket
+            }' > infrastructure/parameters.json
+      
       - name: Deploy to AWS
         run: |
           cd infrastructure
@@ -48,15 +77,7 @@ jobs:
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-                Environment=production \
-                DbHost=${{ secrets.FORECAST_API_MYSQL_HOST }} \
-                DbUser=${{ secrets.FORECAST_API_MYSQL_USER }} \
-                DbPassword=${{ secrets.FORECAST_API_MYSQL_PASSWORD }} \
-                DbName=${{ secrets.FORECAST_API_MYSQL_DATABASE }} \
-                S3AccessKeyId=${{ secrets.AWS_ACCESS_KEY_ID }} \
-                S3SecretAccessKey=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-                S3ForecastBucket=surf-forecast-data
+            --parameter-overrides file://parameters.json
       
       - name: Get API Gateway URL
         id: api-url
