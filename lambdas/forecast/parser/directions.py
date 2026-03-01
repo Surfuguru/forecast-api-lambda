@@ -2,6 +2,7 @@
 Convert wind/wave direction degrees to compass direction strings
 """
 
+# 16-point compass directions (matching the original TypeScript implementation)
 DIRECTION_RANGES = [
     'N',
     'NNE',
@@ -13,6 +14,7 @@ DIRECTION_RANGES = [
     'SSE',
     'S',
     'SSO',
+    'SSO',  # Note: duplicate in original
     'OSO',
     'O',
     'ONO',
