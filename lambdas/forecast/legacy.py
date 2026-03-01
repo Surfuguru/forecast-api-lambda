@@ -84,7 +84,7 @@ def lambda_handler(event, context):
         if not praia_id:
             return bad_request('Missing required parameter: praia_id')
         
-        # Get beach data from database
+        # Get beach data from database (matching forecast-api getBeachById query)
         sql = """
             SELECT DISTINCT
                 lo.litoral_id AS litoral_id,
@@ -97,8 +97,6 @@ def lambda_handler(event, context):
                 pr.nome_2 AS nome,
                 pr.lat as lat,
                 pr.lon as lon,
-                pr.nome_do_mapa as nome_do_mapa,
-                pr.dt_mapa_atualizado as dt_mapa_atualizado,
                 (SELECT lo2.sigla FROM locais lo2 WHERE lo2.id = lo.pai) as uf
             FROM praias pr 
             INNER JOIN locais lo ON pr.local_id = lo.id
