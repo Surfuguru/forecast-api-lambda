@@ -17,6 +17,10 @@ jobs:
         with:
           python-version: '3.13'
       
+      - name: Install Python dependencies
+        run: |
+          pip install tomli-w
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -39,7 +43,7 @@ jobs:
           cd infrastructure
           sam build
       
-      - name: Create parameters file
+      - name: Generate SAM config
         env:
           DB_HOST: ${{ secrets.FORECAST_API_MYSQL_HOST }}
           DB_USER: ${{ secrets.FORECAST_API_MYSQL_USER }}
@@ -47,38 +51,62 @@ jobs:
           DB_NAME: ${{ secrets.FORECAST_API_MYSQL_DATABASE }}
           S3_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
           S3_SECRET_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          S3_FORECAST_BUCKET: ${{ vars.FORECAST_BUCKET }}
+          S3_BUCKET: ${{ vars.FORECAST_BUCKET }}
         run: |
-          jq -n \
-            --arg Environment "production" \
-            --arg DbHost "$DB_HOST" \
-            --arg DbUser "$DB_USER" \
-            --arg DbPassword "$DB_PASSWORD" \
-            --arg DbName "$DB_NAME" \
-            --arg S3AccessKeyId "$S3_ACCESS_KEY" \
-            --arg S3SecretAccessKey "$S3_SECRET_KEY" \
-            --arg S3ForecastBucket "$S3_FORECAST_BUCKET" \
-            '{
-              Environment: $Environment,
-              DbHost: $DbHost,
-              DbUser: $DbUser,
-              DbPassword: $DbPassword,
-              DbName: $DbName,
-              S3AccessKeyId: $S3AccessKeyId,
-              S3SecretAccessKey: $S3SecretAccessKey,
-              S3ForecastBucket: $S3ForecastBucket
-            }' > infrastructure/parameters.json
+          cd infrastructure
+          python3 << 'PYTHON'
+          import os
+          import tomli_w
+          
+          def escape_toml_string(s):
+              """Escape a string for TOML format"""
+              if not s:
+                  return '""'
+              # Escape backslashes first, then quotes
+              s = s.replace('\\', '\\\\')
+              s = s.replace('"', '\\"')
+              return f'"{s}"'
+          
+          # Build parameter_overrides string
+          params = [
+              f"Environment=\"production\"",
+              f"DbHost={escape_toml_string(os.environ.get('DB_HOST', ''))}",
+              f"DbUser={escape_toml_string(os.environ.get('DB_USER', ''))}",
+              f"DbPassword={escape_toml_string(os.environ.get('DB_PASSWORD', ''))}",
+              f"DbName={escape_toml_string(os.environ.get('DB_NAME', ''))}",
+              f"S3AccessKeyId={escape_toml_string(os.environ.get('S3_ACCESS_KEY', ''))}",
+              f"S3SecretAccessKey={escape_toml_string(os.environ.get('S3_SECRET_KEY', ''))}",
+              f"S3ForecastBucket={escape_toml_string(os.environ.get('S3_BUCKET', ''))}",
+          ]
+          
+          config = {
+              "version": 0.1,
+              "default": {
+                  "deploy": {
+                      "parameters": {
+                          "stack_name": "forecast-api-live",
+                          "s3_bucket": "forecast-api-lambda-deployments",
+                          "capabilities": ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"],
+                          "region": "us-east-1",
+                          "confirm_changeset": False,
+                          "fail_on_empty_changeset": False,
+                          "parameter_overrides": " ".join(params)
+                      }
+                  }
+              }
+          }
+          
+          with open("samconfig.toml", "wb") as f:
+              tomli_w.dump(config, f)
+          
+          # Print config for debugging (mask secrets)
+          print("Generated samconfig.toml")
+          PYTHON
       
       - name: Deploy to AWS
         run: |
           cd infrastructure
-          sam deploy \
-            --stack-name forecast-api-live \
-            --s3-bucket forecast-api-lambda-deployments \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --no-confirm-changeset \
-            --no-fail-on-empty-changeset \
-            --parameter-overrides file://parameters.json
+          sam deploy --config-file samconfig.toml
       
       - name: Get API Gateway URL
         id: api-url
