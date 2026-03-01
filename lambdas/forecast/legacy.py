@@ -1,6 +1,8 @@
 """
-Legacy forecast endpoint - Full version with S3 integration
+Legacy forecast endpoint - Full version with S3 integration and parsed output
 GET /forecast?praia_id={id}
+
+Returns forecast in SurfForecastResponse format matching the /surf-forecast API
 """
 
 import json
@@ -10,6 +12,7 @@ import os
 from botocore.exceptions import ClientError
 from common.db import execute_query
 from common.responses import success, bad_request, not_found, server_error
+from parser.builder import ForecastBuilder
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -53,6 +56,22 @@ def fetch_s3_object(bucket, key):
 def lambda_handler(event, context):
     """
     Legacy forecast endpoint with full S3 integration
+    
+    Returns parsed forecast in SurfForecastResponse format:
+    {
+        "id": "123",
+        "date": "2026-03-01",
+        "type": "SURF",
+        "name": "Maracaípe",
+        "orientation": 92,
+        "forecast": {
+            "maxHeight": 1.5,
+            "maxEnergy": 120,
+            "maxPower": 15.8,
+            "maxWind": 25,
+            "days": [...]
+        }
+    }
     """
     try:
         logger.info("LEGACY_FORECAST_REQUEST")
@@ -78,6 +97,8 @@ def lambda_handler(event, context):
                 pr.nome_2 AS nome,
                 pr.lat as lat,
                 pr.lon as lon,
+                pr.nome_do_mapa as nome_do_mapa,
+                pr.dt_mapa_atualizado as dt_mapa_atualizado,
                 (SELECT lo2.sigla FROM locais lo2 WHERE lo2.id = lo.pai) as uf
             FROM praias pr 
             INNER JOIN locais lo ON pr.local_id = lo.id
@@ -117,31 +138,25 @@ def lambda_handler(event, context):
         except Exception as e:
             logger.warning(f"Could not fetch oceanic data: {e}")
         
-        # Build forecast response
-        forecast = {
-            'id': str(beach['praia_id']),
-            'type': 'SURF',
-            'name': beach['nome'],
-            'litoral_id': beach['litoral_id'],
-            'litoral_nome': beach['litoral_nome'],
-            'coordinates': {
-                'lat': float(beach['lat']) if beach['lat'] else None,
-                'long': float(beach['lon']) if beach['lon'] else None
-            },
-            'uf': beach['uf'],
-            'orientacao': beach['orientacao'],
-        }
+        # Validate we have required data
+        if not oceanic_data or not oceanic_data.get('dados'):
+            return not_found(f'Forecast data not found for beach {praia_id}')
         
-        # Add atmospheric data if available
-        if atmospheric_data and 'dados' in atmospheric_data:
-            forecast['atmospheric'] = atmospheric_data['dados']
-        
-        # Add oceanic data if available
-        if oceanic_data and 'dados' in oceanic_data:
-            forecast['oceanic'] = oceanic_data['dados']
-        
-        logger.info(f"LEGACY_FORECAST_SUCCESS: praia_id={praia_id}")
-        return success(forecast)
+        # Build parsed forecast response
+        try:
+            forecast = ForecastBuilder.build_forecast(
+                beach_data=beach,
+                forecast_type='SURF',
+                atmospheric_data=atmospheric_data,
+                oceanic_data=oceanic_data
+            )
+            
+            logger.info(f"LEGACY_FORECAST_SUCCESS: praia_id={praia_id}, days={len(forecast.get('forecast', {}).get('days', []))}")
+            return success(forecast)
+            
+        except Exception as parse_error:
+            logger.error(f"Failed to parse forecast: {parse_error}")
+            return server_error(f"Failed to parse forecast data: {str(parse_error)}")
         
     except Exception as e:
         logger.error(f"LEGACY_FORECAST_ERROR: {str(e)}")
