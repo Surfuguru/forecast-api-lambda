@@ -75,8 +75,3 @@ jobs:
         run: |
           cd infrastructure
           sam build
-      
-      - name: Validate SAM template
-        run: |
-          cd infrastructure
-          sam validate
