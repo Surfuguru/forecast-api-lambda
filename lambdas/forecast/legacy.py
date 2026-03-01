@@ -12,7 +12,7 @@ import os
 from botocore.exceptions import ClientError
 from common.db import execute_query
 from common.responses import success, bad_request, not_found, server_error
-from parser.builder import ForecastBuilder
+from forecast.parser.builder import ForecastBuilder
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
